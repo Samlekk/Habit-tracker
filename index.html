@@ -1,143 +1,410 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#7c3aed">
-  <link rel="manifest" id="manifest-placeholder">
-  <title>Habit Tracker Pro</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-</head>
-<body>
-  <div id="root"></div>
-  
-  <script type="text/babel">
-    const { useState, useEffect } = React;
+import React, { useState, useEffect } from 'react';
+import { Plus, Trash2, Check, Flame, TrendingUp, User } from 'lucide-react';
+
+const TELEGRAM_BOT_TOKEN = '8434385431:AAHsdBYg7-UR9xcVxhGY-hKrfC6e5ZgEDEo';
+const TELEGRAM_CHAT_ID = '-1003297136912';
+
+const EMOJIS = ['💪', '📚', '🧘', '🏃', '💧', '🍎', '😴', '🎨', '🎯', '✍️', '🎵', '🧠', '❤️', '🌟', '⚡'];
+
+const CELEBRATION_GIFS = [
+  'https://media.giphy.com/media/g9582DNuQppxC/giphy.gif',
+  'https://media.giphy.com/media/artj92V8o75VPL7AeQ/giphy.gif',
+  'https://media.giphy.com/media/26tOZ42Mg6pbTUPHW/giphy.gif'
+];
+
+const SHAME_GIFS = [
+  'https://media.giphy.com/media/vX9WcCiWwUF7G/giphy.gif',
+  'https://media.giphy.com/media/3o7aCWJavAgtBzLWrS/giphy.gif',
+  'https://media.giphy.com/media/l2JhpjWPccQhsAMfu/giphy.gif'
+];
+
+export default function HabitTracker() {
+  const [habits, setHabits] = useState([]);
+  const [newHabit, setNewHabit] = useState('');
+  const [selectedEmoji, setSelectedEmoji] = useState('🎯');
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showShame, setShowShame] = useState(false);
+  const [celebrationGif, setCelebrationGif] = useState(CELEBRATION_GIFS[0]);
+  const [shameGif, setShameGif] = useState(SHAME_GIFS[0]);
+  const [username, setUsername] = useState('');
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+    checkMissedDays();
+    checkWeeklyReport();
+  }, []);
+
+  const loadData = () => {
+    const storedHabits = localStorage.getItem('habits');
+    const storedUsername = localStorage.getItem('username');
+    const lastCheck = localStorage.getItem('lastCheck');
     
-    function HabitTracker() {
-      const [habits, setHabits] = useState([]);
-      const [newHabit, setNewHabit] = useState('');
-      const [showCelebration, setShowCelebration] = useState(false);
+    if (storedHabits) setHabits(JSON.parse(storedHabits));
+    if (storedUsername) setUsername(storedUsername);
+    else setShowUsernameModal(true);
+    
+    setLoading(false);
+  };
 
-      useEffect(() => {
-        const stored = localStorage.getItem('habits');
-        if (stored) setHabits(JSON.parse(stored));
-      }, []);
-
-      const saveHabits = (h) => localStorage.setItem('habits', JSON.stringify(h));
-
-      const addHabit = () => {
-        if (!newHabit.trim()) return;
-        const updated = [...habits, { id: Date.now(), name: newHabit, completedCount: 0, lastCompleted: null, streak: 0 }];
-        setHabits(updated);
-        saveHabits(updated);
-        setNewHabit('');
-      };
-
-      const deleteHabit = (id) => {
-        const updated = habits.filter(h => h.id !== id);
-        setHabits(updated);
-        saveHabits(updated);
-      };
-
-      const completeHabit = (id) => {
-        new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PWqvn77BdGAg+ltryxHUpBSl+zPLaizsIGGS57OihUBELTKXh8bllHgU2jdXzzn8vBSF1xvDdlEILElyx6OyrWBUIQ5zd8sFuJAU').play();
+  const checkMissedDays = () => {
+    const lastCheck = localStorage.getItem('lastCheck');
+    const today = new Date().toDateString();
+    
+    if (lastCheck && lastCheck !== today) {
+      const storedHabits = localStorage.getItem('habits');
+      if (storedHabits) {
+        const habits = JSON.parse(storedHabits);
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
         
-        const updated = habits.map(h => {
-          if (h.id !== id) return h;
-          const today = new Date().toDateString();
-          const isNew = !h.lastCompleted || new Date(h.lastCompleted).toDateString() !== today;
-          return { ...h, completedCount: h.completedCount + 1, lastCompleted: Date.now(), streak: isNew ? h.streak + 1 : h.streak };
+        const missedHabits = habits.filter(h => {
+          if (!h.lastCompleted) return false;
+          const lastDate = new Date(h.lastCompleted).toDateString();
+          return lastDate !== yesterday && lastDate !== today;
         });
         
-        setHabits(updated);
-        saveHabits(updated);
-        setShowCelebration(true);
-        setTimeout(() => setShowCelebration(false), 3000);
+        if (missedHabits.length > 0) {
+          setShameGif(SHAME_GIFS[Math.floor(Math.random() * SHAME_GIFS.length)]);
+          setShowShame(true);
+          setTimeout(() => setShowShame(false), 4000);
+        }
+      }
+    }
+    
+    localStorage.setItem('lastCheck', today);
+  };
+
+  const checkWeeklyReport = () => {
+    const lastReport = localStorage.getItem('lastWeeklyReport');
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    
+    if (dayOfWeek === 0) { // Domingo
+      const todayStr = today.toDateString();
+      if (lastReport !== todayStr) {
+        sendWeeklyReport();
+        localStorage.setItem('lastWeeklyReport', todayStr);
+      }
+    }
+  };
+
+  const sendWeeklyReport = () => {
+    const storedHabits = localStorage.getItem('habits');
+    if (!storedHabits) return;
+    
+    const habits = JSON.parse(storedHabits);
+    const totalCompleted = habits.reduce((sum, h) => sum + h.completedCount, 0);
+    const maxStreak = Math.max(...habits.map(h => h.streak), 0);
+    
+    let message = `📊 REPORTE SEMANAL 📊\n\n`;
+    message += `👤 Usuario: ${username || 'Anónimo'}\n`;
+    message += `✅ Total completados: ${totalCompleted}\n`;
+    message += `🔥 Racha máxima: ${maxStreak} días\n\n`;
+    message += `Hábitos activos:\n`;
+    habits.forEach(h => {
+      message += `${h.emoji} ${h.name}: ${h.streak} días 🔥\n`;
+    });
+    
+    sendTelegramMessage(message);
+  };
+
+  const saveUsername = () => {
+    if (username.trim()) {
+      localStorage.setItem('username', username);
+      setShowUsernameModal(false);
+      sendTelegramMessage(`👋 ${username} se ha unido al Habit Tracker!`);
+    }
+  };
+
+  const saveHabits = (updatedHabits) => {
+    localStorage.setItem('habits', JSON.stringify(updatedHabits));
+  };
+
+  const sendTelegramMessage = async (message) => {
+    try {
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHAT_ID,
+          text: message,
+          parse_mode: 'HTML'
+        })
+      });
+    } catch (error) {
+      console.log('Error enviando mensaje a Telegram:', error);
+    }
+  };
+
+  const addHabit = () => {
+    if (newHabit.trim()) {
+      const habit = {
+        id: Date.now(),
+        name: newHabit,
+        emoji: selectedEmoji,
+        completedCount: 0,
+        lastCompleted: null,
+        streak: 0
       };
+      const updatedHabits = [...habits, habit];
+      setHabits(updatedHabits);
+      saveHabits(updatedHabits);
+      setNewHabit('');
+      
+      sendTelegramMessage(`✨ ${username} agregó un nuevo hábito: ${selectedEmoji} ${newHabit}`);
+    }
+  };
 
-      const isCompletedToday = (h) => h.lastCompleted && new Date(h.lastCompleted).toDateString() === new Date().toDateString();
+  const deleteHabit = (id) => {
+    const habit = habits.find(h => h.id === id);
+    const updatedHabits = habits.filter(h => h.id !== id);
+    setHabits(updatedHabits);
+    saveHabits(updatedHabits);
+    
+    if (habit) {
+      sendTelegramMessage(`🗑️ ${username} eliminó: ${habit.emoji} ${habit.name}`);
+    }
+  };
 
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-700 to-pink-600 p-4 md:p-8">
-          {showCelebration && (
-            <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-              <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl animate-bounce">
-                <img src="https://media.giphy.com/media/g9582DNuQppxC/giphy.gif" className="w-64 h-64 rounded-2xl" />
-                <div className="text-4xl font-bold text-center mt-4 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">¡Genial! 🎉</div>
-              </div>
+  const completeHabit = (id) => {
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PWqvn77BdGAg+ltryxHUpBSl+zPLaizsIGGS57OihUBELTKXh8bllHgU2jdXzzn8vBSF1xvDdlEILElyx6OyrWBUIQ5zd8sFuJAU');
+    audio.play().catch(e => console.log('Audio error'));
+
+    const habit = habits.find(h => h.id === id);
+    const updatedHabits = habits.map(h => {
+      if (h.id === id) {
+        const today = new Date().toDateString();
+        const lastDate = h.lastCompleted ? new Date(h.lastCompleted).toDateString() : null;
+        const isNewDay = today !== lastDate;
+        const newStreak = isNewDay ? h.streak + 1 : h.streak;
+        
+        return {
+          ...h,
+          completedCount: h.completedCount + 1,
+          lastCompleted: Date.now(),
+          streak: newStreak
+        };
+      }
+      return h;
+    });
+
+    setHabits(updatedHabits);
+    saveHabits(updatedHabits);
+
+    setCelebrationGif(CELEBRATION_GIFS[Math.floor(Math.random() * CELEBRATION_GIFS.length)]);
+    setShowCelebration(true);
+    setTimeout(() => setShowCelebration(false), 3000);
+
+    if (habit) {
+      const newStreak = habit.streak + 1;
+      let message = `🎉 ${username} completó: ${habit.emoji} ${habit.name}\n`;
+      message += `🔥 Racha: ${newStreak} día${newStreak !== 1 ? 's' : ''}`;
+      
+      if (newStreak === 7) message += `\n🏆 ¡UNA SEMANA COMPLETA!`;
+      if (newStreak === 30) message += `\n🌟 ¡UN MES INCREÍBLE!`;
+      if (newStreak === 100) message += `\n👑 ¡LEYENDA DE LOS HÁBITOS!`;
+      
+      sendTelegramMessage(message);
+    }
+  };
+
+  const isCompletedToday = (habit) => {
+    if (!habit.lastCompleted) return false;
+    const today = new Date().toDateString();
+    const lastDate = new Date(habit.lastCompleted).toDateString();
+    return today === lastDate;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-700 to-pink-600 flex items-center justify-center">
+        <div className="text-white text-2xl">Cargando...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-700 to-pink-600 p-4 md:p-8">
+      {showUsernameModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
+            <div className="text-center mb-6">
+              <User size={48} className="mx-auto mb-4 text-purple-600" />
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">¡Bienvenido!</h2>
+              <p className="text-gray-600">¿Cómo te llamas?</p>
             </div>
-          )}
-          
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <h1 className="text-5xl font-bold text-white mb-2 drop-shadow-lg">Habit Tracker Pro</h1>
-              <p className="text-purple-200 text-lg">Construye mejores hábitos, un día a la vez</p>
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 shadow-xl">
-              <div className="flex gap-3">
-                <input type="text" value={newHabit} onChange={(e) => setNewHabit(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addHabit()} placeholder="Nuevo hábito (ej: Hacer ejercicio...)" className="flex-1 px-6 py-4 rounded-xl bg-white/20 text-white placeholder-purple-200 border-2 border-white/30 focus:border-white/60 focus:outline-none text-lg" />
-                <button onClick={addHabit} className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-purple-600 transition-all transform hover:scale-105 shadow-lg">➕ Agregar</button>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              {habits.length === 0 ? (
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-12 text-center shadow-xl">
-                  <p className="text-purple-200 text-xl">No hay hábitos aún. ¡Agrega tu primer hábito! 🚀</p>
-                </div>
-              ) : habits.map(habit => {
-                const done = isCompletedToday(habit);
-                return (
-                  <div key={habit.id} className={`bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-xl ${done ? 'bg-green-500/20 border-2 border-green-400/50' : ''}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h3 className={`text-2xl font-semibold mb-2 ${done ? 'text-green-300 line-through' : 'text-white'}`}>{habit.name}</h3>
-                        <div className="flex gap-6 text-purple-200">
-                          <span>✓ {habit.completedCount} veces</span>
-                          <span>🔥 {habit.streak} días seguidos</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <button onClick={() => completeHabit(habit.id)} disabled={done} className={`p-4 rounded-xl font-semibold transition-all shadow-lg ${done ? 'bg-green-500/50 text-green-200 cursor-not-allowed' : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600'}`}>✓</button>
-                        <button onClick={() => deleteHabit(habit.id)} className="p-4 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-xl">🗑️</button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {habits.length > 0 && (
-              <div className="mt-8 bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-xl">
-                <h2 className="text-2xl font-bold text-white mb-4">Estadísticas</h2>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center"><div className="text-4xl font-bold text-white">{habits.length}</div><div className="text-purple-200">Hábitos</div></div>
-                  <div className="text-center"><div className="text-4xl font-bold text-white">{habits.reduce((s, h) => s + h.completedCount, 0)}</div><div className="text-purple-200">Total</div></div>
-                  <div className="text-center"><div className="text-4xl font-bold text-white">{habits.filter(isCompletedToday).length}</div><div className="text-purple-200">Hoy</div></div>
-                </div>
-              </div>
-            )}
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && saveUsername()}
+              placeholder="Tu nombre..."
+              className="w-full px-6 py-4 rounded-xl border-2 border-purple-300 focus:border-purple-500 focus:outline-none text-lg mb-4"
+              autoFocus
+            />
+            <button
+              onClick={saveUsername}
+              className="w-full py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all"
+            >
+              Comenzar
+            </button>
           </div>
         </div>
-      );
-    }
-    
-    ReactDOM.render(<HabitTracker />, document.getElementById('root'));
-  </script>
-  
-  <script>
-    const manifestJson = {name:"Habit Tracker Pro",short_name:"Habits",start_url:".",display:"standalone",background_color:"#7c3aed",theme_color:"#7c3aed",icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%237c3aed' width='100' height='100'/%3E%3Ctext x='50' y='65' font-size='60' text-anchor='middle'%3E🚀%3C/text%3E%3C/svg%3E",sizes:"512x512",type:"image/svg+xml"}]};
-    const blob = new Blob([JSON.stringify(manifestJson)], {type: 'application/json'});
-    document.getElementById('manifest-placeholder').href = URL.createObjectURL(blob);
-    
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register(URL.createObjectURL(new Blob([`self.addEventListener('install',e=>e.waitUntil(self.skipWaiting()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request)));`],{type:'application/javascript'})));
-    }
-  </script>
-</body>
-</html>
+      )}
+
+      {showCelebration && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl animate-bounce">
+            <img src={celebrationGif} alt="Celebration" className="w-64 h-64 rounded-2xl" />
+            <div className="text-4xl font-bold text-center mt-4 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              ¡Genial! 🎉
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showShame && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl animate-bounce">
+            <img src={shameGif} alt="Shame" className="w-64 h-64 rounded-2xl" />
+            <div className="text-4xl font-bold text-center mt-4 text-red-600">
+              ¡Te saltaste días! 😢
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-5xl font-bold text-white mb-2 drop-shadow-lg">Habit Tracker Pro</h1>
+          <p className="text-purple-200 text-lg">👤 {username}</p>
+        </div>
+
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 shadow-xl">
+          <div className="mb-4">
+            <label className="text-white text-sm mb-2 block">Elige un emoji:</label>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {EMOJIS.map(emoji => (
+                <button
+                  key={emoji}
+                  onClick={() => setSelectedEmoji(emoji)}
+                  className={`text-3xl p-2 rounded-lg transition-all ${
+                    selectedEmoji === emoji ? 'bg-white/30 scale-125' : 'bg-white/10 hover:bg-white/20'
+                  }`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={newHabit}
+              onChange={(e) => setNewHabit(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && addHabit()}
+              placeholder="Nuevo hábito..."
+              className="flex-1 px-6 py-4 rounded-xl bg-white/20 backdrop-blur-sm text-white placeholder-purple-200 border-2 border-white/30 focus:border-white/60 focus:outline-none text-lg"
+            />
+            <button
+              onClick={addHabit}
+              className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-purple-600 transition-all transform hover:scale-105 shadow-lg flex items-center gap-2"
+            >
+              <Plus size={24} />
+              Agregar
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {habits.length === 0 ? (
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-12 text-center shadow-xl">
+              <p className="text-purple-200 text-xl">No hay hábitos aún. ¡Agrega tu primer hábito! 🚀</p>
+            </div>
+          ) : (
+            habits.map((habit) => {
+              const completed = isCompletedToday(habit);
+              return (
+                <div
+                  key={habit.id}
+                  className={`bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-xl transition-all transform hover:scale-[1.02] ${
+                    completed ? 'bg-green-500/20 border-2 border-green-400/50' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 flex items-center gap-4">
+                      <span className="text-5xl">{habit.emoji}</span>
+                      <div>
+                        <h3 className={`text-2xl font-semibold mb-2 ${completed ? 'text-green-300 line-through' : 'text-white'}`}>
+                          {habit.name}
+                        </h3>
+                        <div className="flex gap-6 text-purple-200">
+                          <span className="flex items-center gap-2">
+                            <Check size={18} />
+                            {habit.completedCount} veces
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <Flame size={18} className="text-orange-400" />
+                            {habit.streak} días seguidos
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => completeHabit(habit.id)}
+                        disabled={completed}
+                        className={`p-4 rounded-xl font-semibold transition-all transform hover:scale-110 shadow-lg ${
+                          completed
+                            ? 'bg-green-500/50 text-green-200 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600'
+                        }`}
+                      >
+                        <Check size={28} />
+                      </button>
+                      <button
+                        onClick={() => deleteHabit(habit.id)}
+                        className="p-4 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-xl transition-all transform hover:scale-110"
+                      >
+                        <Trash2 size={28} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {habits.length > 0 && (
+          <div className="mt-8 bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-xl">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <TrendingUp size={28} />
+              Estadísticas
+            </h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white">{habits.length}</div>
+                <div className="text-purple-200">Hábitos</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white">
+                  {habits.reduce((sum, h) => sum + h.completedCount, 0)}
+                </div>
+                <div className="text-purple-200">Total</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-white">
+                  {habits.filter(h => isCompletedToday(h)).length}
+                </div>
+                <div className="text-purple-200">Hoy</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
