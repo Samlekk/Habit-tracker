@@ -326,11 +326,15 @@
             render();
         }
 
+        // **************** CORRECCIÓN CLAVE ****************
+        // Eliminamos la llamada a renderModal() para evitar la pérdida de foco.
+        // El input mantiene su valor automáticamente.
         window.handleNewHabitInput = function(name) {
             state.newHabit.name = name;
-            renderModal();
+            // renderModal(); <-- COMENTADO/ELIMINADO
         }
-        
+        // *************************************************
+
         window.selectEmoji = function(emoji) {
             state.newHabit.emoji = emoji;
             renderModal();
@@ -343,6 +347,7 @@
         
         window.handleFactorChange = function(factor, value) {
             state.newHabit.factors[factor] = parseInt(value);
+            // Mantenemos renderModal() aquí porque necesitamos actualizar el FV en tiempo real
             renderModal();
         }
 
@@ -611,6 +616,7 @@
                                     <div class="flex gap-4">
                                         <div class="flex-1">
                                             <label class="block text-sm text-purple-300 mb-1">Nombre</label>
+                                            <!-- ATENCIÓN: Se usa oninput para actualizar el estado, pero NO se llama a renderModal() -->
                                             <input type="text" 
                                                 class="w-full bg-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 ring-purple-500"
                                                 placeholder="Ej: Leer 30 min"
