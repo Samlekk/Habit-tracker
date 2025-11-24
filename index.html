@@ -1,421 +1,729 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#7c3aed">
-  <title>Habit Tracker Pro</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <style>
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-20px); }
-    }
-    .animate-bounce { animation: bounce 0.5s ease-in-out; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Habit Tracker Pro - Vanilla JS</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        
+        /* Animaciones personalizadas */
+        @keyframes bounce-custom {
+            0%, 100% { transform: translateY(-5%); }
+            50% { transform: translateY(0); }
+        }
+        .animate-bounce-custom { animation: bounce-custom 1s infinite; }
+        
+        /* Estilos para sliders */
+        input[type=range] { -webkit-appearance: none; background: transparent; width: 100%; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #ffffff; cursor: pointer; margin-top: -6px; box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer;
+            background: rgba(255,255,255,0.3); border-radius: 2px;
+        }
+    </style>
 </head>
-<body>
-  <div id="root"></div>
-  
-  <script type="text/babel">
-    const { useState, useEffect } = React;
-    
-    const TELEGRAM_BOT_TOKEN = '8434385431:AAHsdBYg7-UR9xcVxhGY-hKrfC6e5ZgEDEo';
-    const TELEGRAM_CHAT_ID = '-1003297136912';
-    const EMOJIS = ['💪', '📚', '🧘', '🏃', '💧', '🍎', '😴', '🎨', '🎯', '✍️', '🎵', '🧠', '❤️', '🌟', '⚡'];
-    const DEFAULT_CELEBRATION_GIF = 'https://media.giphy.com/media/g9582DNuQppxC/giphy.gif';
-    
-    function HabitTracker() {
-      const [habits, setHabits] = useState([]);
-      const [newHabit, setNewHabit] = useState('');
-      const [selectedEmoji, setSelectedEmoji] = useState('🎯');
-      const [showCelebration, setShowCelebration] = useState(false);
-      const [showShame, setShowShame] = useState(false);
-      const [celebrationGif, setCelebrationGif] = useState(DEFAULT_CELEBRATION_GIF);
-      const [shameGif, setShameGif] = useState('');
-      const [username, setUsername] = useState('');
-      const [showUsernameModal, setShowUsernameModal] = useState(false);
-      const [loading, setLoading] = useState(true);
-      const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-      const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+<body class="bg-gradient-to-br from-purple-900 via-purple-700 to-pink-600 min-h-screen text-white select-none">
 
-      useEffect(() => {
-        loadData();
-        checkMissedDays();
-        checkWeeklyReport();
-        checkNotificationPermission();
-      }, []);
+    <div id="app" class="max-w-4xl mx-auto p-4 md:p-8 relative min-h-screen">
+        <!-- Contenido principal y modales se renderizarán aquí -->
+        <div id="modals"></div>
+        <div id="main-content"></div>
+    </div>
 
-      const checkNotificationPermission = () => {
-        if ('Notification' in window) {
-          setNotificationsEnabled(Notification.permission === 'granted');
-          if (Notification.permission === 'default') {
-            setTimeout(() => setShowNotificationPrompt(true), 3000);
-          }
-        }
-      };
+    <script>
+        // --- CONSTANTES ---
+        const TELEGRAM_BOT_TOKEN = '8434385431:AAHsdBYg7-UR9xcVxhGY-hKrfC6e5ZgEDEo';
+        const TELEGRAM_CHAT_ID = '-1003297136912';
+        const EMOJIS = ['💪', '📚', '🧘', '🏃', '💧', '🍎', '😴', '🎨', '🎯', '✍️', '🎵', '🧠', '❤️', '🌟', '⚡'];
+        const DEFAULT_GIF = 'https://media.giphy.com/media/g9582DNuQppxC/giphy.gif';
+        const BASE64_SOUND = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtjMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PWqvn77BdGAg+ltryxHUpBSl+zPLaizsIGGS57OihUBELTKXh8bllHgU2jdXzzn8vBSF1xvDdlEILElyx6OyrWBUIQ5zd8sFuJAU';
 
-      const requestNotificationPermission = async () => {
-        if ('Notification' in window) {
-          const permission = await Notification.requestPermission();
-          setNotificationsEnabled(permission === 'granted');
-          setShowNotificationPrompt(false);
-          
-          if (permission === 'granted') {
-            sendBrowserNotification('🎉 Notificaciones activadas', 'Recibirás alertas cuando tú o tu amigo completen hábitos');
-          }
-        }
-      };
-
-      const sendBrowserNotification = (title, body, icon = '🎯') => {
-        if ('Notification' in window && Notification.permission === 'granted') {
-          try {
-            const notification = new Notification(title, {
-              body: body,
-              icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%237c3aed" width="100" height="100"/%3E%3Ctext x="50" y="65" font-size="60" text-anchor="middle"%3E' + icon + '%3C/text%3E%3C/svg%3E',
-              vibrate: [200, 100, 200],
-              requireInteraction: false
-            });
-            setTimeout(() => notification.close(), 5000);
-            notification.onclick = () => {
-              window.focus();
-              notification.close();
-            };
-          } catch (error) {
-            console.log('Error mostrando notificación:', error);
-          }
-        }
-      };
-
-      const loadData = () => {
-        const storedHabits = localStorage.getItem('habits');
-        const storedUsername = localStorage.getItem('username');
-        
-        if (storedHabits) setHabits(JSON.parse(storedHabits));
-        if (storedUsername) setUsername(storedUsername);
-        else setShowUsernameModal(true);
-        
-        setLoading(false);
-      };
-
-      const checkMissedDays = () => {
-        const lastCheck = localStorage.getItem('lastCheck');
-        const today = new Date().toDateString();
-        
-        if (lastCheck && lastCheck !== today) {
-          const storedHabits = localStorage.getItem('habits');
-          if (storedHabits) {
-            const habits = JSON.parse(storedHabits);
-            const yesterday = new Date(Date.now() - 86400000).toDateString();
+        // --- ESTADO GLOBAL ---
+        let state = {
+            habits: [],
+            username: '',
+            loading: true,
             
-            const missedHabits = habits.filter(h => {
-              if (!h.lastCompleted) return false;
-              const lastDate = new Date(h.lastCompleted).toDateString();
-              return lastDate !== yesterday && lastDate !== today;
-            });
+            // Modales
+            showUserModal: false,
+            showAddModal: false,
+            showCelebration: false,
+            showShame: false,
             
-            if (missedHabits.length > 0) {
-              showFailureAnimation();
-              sendBrowserNotification('😢 ¡Te saltaste días!', `Tienes ${missedHabits.length} hábito${missedHabits.length > 1 ? 's' : ''} sin completar`, '😢');
+            // Datos multimedia
+            celebrationGif: DEFAULT_GIF,
+            shameGif: '',
+            
+            // Formulario de nuevo hábito
+            newHabit: {
+                name: '',
+                emoji: '🎯',
+                frequency: 'daily',
+                factors: { motivation: 5, focus: 5, effort: 5, importance: 5, difficulty: 5 }
             }
-          }
+        };
+
+        // --- LÓGICA DE NEGOCIO ---
+
+        function getWeekNumber(d) {
+            d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+            return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
         }
         
-        localStorage.setItem('lastCheck', today);
-      };
-
-      const showFailureAnimation = () => {
-        const randomNum = Math.floor(Math.random() * 8) + 1;
-        setShameGif(`Failure${randomNum}.gif`);
-        setShowShame(true);
-        
-        const audio = new Audio(`Failure${randomNum}.mp3`);
-        audio.play().catch(e => console.log('Error reproduciendo sonido'));
-        
-        setTimeout(() => setShowShame(false), 4000);
-      };
-
-      const checkWeeklyReport = () => {
-        const lastReport = localStorage.getItem('lastWeeklyReport');
-        const today = new Date();
-        const dayOfWeek = today.getDay();
-        
-        if (dayOfWeek === 0) {
-          const todayStr = today.toDateString();
-          if (lastReport !== todayStr) {
-            sendWeeklyReport();
-            localStorage.setItem('lastWeeklyReport', todayStr);
-          }
+        function getRankInfo(fv) {
+            if (fv >= 30000) return { label: 'S Rank', color: 'text-yellow-300', stars: 5, icon: '⚡' };
+            if (fv >= 15000) return { label: 'Hard', color: 'text-red-400', stars: 4, icon: '🔥' };
+            if (fv >= 5000)  return { label: 'Intermediate', color: 'text-blue-300', stars: 3, icon: '💪' };
+            if (fv >= 1000)  return { label: 'Easy', color: 'text-green-300', stars: 2, icon: '👍' };
+            return { label: 'Trivial', color: 'text-gray-300', stars: 1, icon: '✅' };
         }
-      };
 
-      const sendWeeklyReport = () => {
-        const storedHabits = localStorage.getItem('habits');
-        if (!storedHabits) return;
-        
-        const habits = JSON.parse(storedHabits);
-        const totalCompleted = habits.reduce((sum, h) => sum + h.completedCount, 0);
-        const maxStreak = Math.max(...habits.map(h => h.streak), 0);
-        
-        let message = `📊 REPORTE SEMANAL 📊\n\n`;
-        message += `👤 Usuario: ${username || 'Anónimo'}\n`;
-        message += `✅ Total completados: ${totalCompleted}\n`;
-        message += `🔥 Racha máxima: ${maxStreak} días\n\n`;
-        message += `Hábitos activos:\n`;
-        habits.forEach(h => {
-          message += `${h.emoji} ${h.name}: ${h.streak} días 🔥\n`;
-        });
-        
-        sendTelegramMessage(message);
-        sendBrowserNotification('📊 Reporte Semanal', `Total: ${totalCompleted} completados | Racha máxima: ${maxStreak} días`, '📊');
-      };
-
-      const saveUsername = () => {
-        if (username.trim()) {
-          localStorage.setItem('username', username);
-          setShowUsernameModal(false);
-          sendTelegramMessage(`👋 ${username} se ha unido al Habit Tracker!`);
+        function calculateFV(factors) {
+            const { motivation, focus, effort, importance, difficulty } = factors;
+            return motivation * focus * effort * importance * difficulty;
         }
-      };
 
-      const saveHabits = (updatedHabits) => {
-        localStorage.setItem('habits', JSON.stringify(updatedHabits));
-      };
-
-      const sendTelegramMessage = async (message) => {
-        try {
-          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: TELEGRAM_CHAT_ID,
-              text: message,
-              parse_mode: 'HTML'
-            })
-          });
-        } catch (error) {
-          console.log('Error enviando mensaje:', error);
-        }
-      };
-
-      const addHabit = () => {
-        if (newHabit.trim()) {
-          const habit = {
-            id: Date.now(),
-            name: newHabit,
-            emoji: selectedEmoji,
-            completedCount: 0,
-            lastCompleted: null,
-            streak: 0
-          };
-          const updatedHabits = [...habits, habit];
-          setHabits(updatedHabits);
-          saveHabits(updatedHabits);
-          setNewHabit('');
-          
-          sendTelegramMessage(`✨ ${username} agregó un nuevo hábito: ${selectedEmoji} ${newHabit}`);
-          sendBrowserNotification('✨ Nuevo hábito agregado', `${selectedEmoji} ${newHabit}`, '✨');
-        }
-      };
-
-      const deleteHabit = (id) => {
-        const habit = habits.find(h => h.id === id);
-        const updatedHabits = habits.filter(h => h.id !== id);
-        setHabits(updatedHabits);
-        saveHabits(updatedHabits);
-        
-        if (habit) {
-          sendTelegramMessage(`🗑️ ${username} eliminó: ${habit.emoji} ${habit.name}`);
-        }
-      };
-
-      const getCelebrationMedia = (streak) => {
-        if (streak === 3) return { gif: 'Day3.gif', sound: 'Day3.mp3' };
-        if (streak === 7) return { gif: 'Day7.gif', sound: 'Day7.mp3' };
-        if (streak === 15) return { gif: 'Day15.gif', sound: 'Day15.mp3' };
-        if (streak >= 30) return { gif: 'Day30.gif', sound: 'Day30.mp3' };
-        return { gif: DEFAULT_CELEBRATION_GIF, sound: 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PWqvn77BdGAg+ltryxHUpBSl+zPLaizsIGGS57OihUBELTKXh8bllHgU2jdXzzn8vBSF1xvDdlEILElyx6OyrWBUIQ5zd8sFuJAU' };
-      };
-
-      const completeHabit = (id) => {
-        const habit = habits.find(h => h.id === id);
-        const updatedHabits = habits.map(h => {
-          if (h.id === id) {
-            const today = new Date().toDateString();
-            const lastDate = h.lastCompleted ? new Date(h.lastCompleted).toDateString() : null;
-            const isNewDay = today !== lastDate;
-            const newStreak = isNewDay ? h.streak + 1 : h.streak;
+        function canComplete(habit) {
+            if (!habit.lastCompleted) return true;
             
-            return { ...h, completedCount: h.completedCount + 1, lastCompleted: Date.now(), streak: newStreak };
-          }
-          return h;
-        });
+            const now = new Date();
+            const last = new Date(habit.lastCompleted);
+            
+            const nowZero = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const lastZero = new Date(last.getFullYear(), last.getMonth(), last.getDate()).getTime();
 
-        setHabits(updatedHabits);
-        saveHabits(updatedHabits);
-
-        if (habit) {
-          const newStreak = habit.streak + 1;
-          const media = getCelebrationMedia(newStreak);
-          
-          setCelebrationGif(media.gif);
-          setShowCelebration(true);
-          new Audio(media.sound).play().catch(e => console.log('Error'));
-          setTimeout(() => setShowCelebration(false), 3000);
-
-          let message = `🎉 ${username} completó: ${habit.emoji} ${habit.name}\n🔥 Racha: ${newStreak} día${newStreak !== 1 ? 's' : ''}`;
-          let specialMsg = '';
-          
-          if (newStreak === 3) specialMsg = '\n🥉 ¡TRES DÍAS SEGUIDOS!';
-          if (newStreak === 7) specialMsg = '\n🏆 ¡UNA SEMANA COMPLETA!';
-          if (newStreak === 15) specialMsg = '\n💎 ¡DOS SEMANAS IMPRESIONANTES!';
-          if (newStreak === 30) specialMsg = '\n🌟 ¡UN MES INCREÍBLE!';
-          if (newStreak === 100) specialMsg = '\n👑 ¡LEYENDA DE LOS HÁBITOS!';
-          
-          message += specialMsg;
-          sendTelegramMessage(message);
-          sendBrowserNotification(`${habit.emoji} ¡${username} completó un hábito!`, `${habit.name} - Racha: ${newStreak} día${newStreak !== 1 ? 's' : ''} 🔥${specialMsg.replace('\n', ' ')}`, habit.emoji);
+            switch(habit.frequency) {
+                case 'daily':
+                    return nowZero > lastZero;
+                case 'weekly':
+                    const currentWeek = getWeekNumber(now);
+                    const lastWeek = getWeekNumber(last);
+                    return currentWeek !== lastWeek || now.getFullYear() !== last.getFullYear();
+                case 'monthly':
+                    return now.getMonth() !== last.getMonth() || now.getFullYear() !== last.getFullYear();
+                default: return true;
+            }
         }
-      };
 
-      const isCompletedToday = (habit) => {
-        if (!habit.lastCompleted) return false;
-        return new Date().toDateString() === new Date(habit.lastCompleted).toDateString();
-      };
+        function calculateNewStreak(habit) {
+            const now = new Date();
+            const last = habit.lastCompleted ? new Date(habit.lastCompleted) : null;
+            
+            if (!last || !habit.lastCompleted) return 1;
 
-      if (loading) {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-700 to-pink-600 flex items-center justify-center">
-            <div className="text-white text-2xl">Cargando...</div>
-          </div>
-        );
-      }
+            let isConsecutive = false;
+            
+            if (habit.frequency === 'daily') {
+                const yesterday = new Date(now);
+                yesterday.setDate(now.getDate() - 1);
+                isConsecutive = last.toDateString() === yesterday.toDateString();
 
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-700 to-pink-600 p-4 md:p-8">
-          {showNotificationPrompt && (
-            <div className="fixed top-4 right-4 z-50 bg-white rounded-2xl p-6 shadow-2xl max-w-sm animate-bounce">
-              <div className="flex items-start gap-4">
-                <div className="text-4xl">🔔</div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-800 mb-2">¿Activar notificaciones?</h3>
-                  <p className="text-sm text-gray-600 mb-4">Recibe alertas cuando tú o tu amigo completen hábitos</p>
-                  <div className="flex gap-2">
-                    <button onClick={requestNotificationPermission} className="flex-1 py-2 px-4 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 text-sm">Activar</button>
-                    <button onClick={() => setShowNotificationPrompt(false)} className="flex-1 py-2 px-4 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 text-sm">Ahora no</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+            } else if (habit.frequency === 'weekly') {
+                const currentWeek = getWeekNumber(now);
+                const lastWeek = getWeekNumber(last);
+                const currentYear = now.getFullYear();
+                const lastYear = last.getFullYear();
+                
+                if (currentYear === lastYear) {
+                    isConsecutive = currentWeek === lastWeek + 1;
+                } else if (currentYear === lastYear + 1) {
+                    const weeksInLastYear = getWeekNumber(new Date(lastYear, 11, 31));
+                    isConsecutive = currentWeek === 1 && lastWeek === weeksInLastYear;
+                }
+            } else if (habit.frequency === 'monthly') {
+                const monthDiff = (now.getFullYear() - last.getFullYear()) * 12 + (now.getMonth() - last.getMonth());
+                isConsecutive = monthDiff === 1;
+            }
 
-          {showUsernameModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
-                <div className="text-center mb-6">
-                  <div className="text-6xl mb-4">👤</div>
-                  <h2 className="text-3xl font-bold text-gray-800 mb-2">¡Bienvenido!</h2>
-                  <p className="text-gray-600">¿Cómo te llamas?</p>
-                </div>
-                <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && saveUsername()} placeholder="Tu nombre..." className="w-full px-6 py-4 rounded-xl border-2 border-purple-300 focus:border-purple-500 focus:outline-none text-lg mb-4" autoFocus />
-                <button onClick={saveUsername} className="w-full py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all">Comenzar</button>
-              </div>
-            </div>
-          )}
+            return isConsecutive ? habit.streak + 1 : 1;
+        }
 
-          {showCelebration && (
-            <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-              <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl animate-bounce">
-                <img src={celebrationGif} alt="Celebration" className="w-64 h-64 rounded-2xl object-cover" />
-                <div className="text-4xl font-bold text-center mt-4 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">¡Genial! 🎉</div>
-              </div>
-            </div>
-          )}
+        // --- SISTEMA DE PERSISTENCIA Y EVENTOS ---
 
-          {showShame && (
-            <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-              <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl animate-bounce">
-                <img src={shameGif} alt="Shame" className="w-64 h-64 rounded-2xl object-cover" />
-                <div className="text-4xl font-bold text-center mt-4 text-red-600">¡Te saltaste días! 😢</div>
-              </div>
-            </div>
-          )}
+        function saveData() {
+            localStorage.setItem('habits', JSON.stringify(state.habits));
+        }
 
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <div className="flex items-center justify-center gap-4 mb-2">
-                <h1 className="text-5xl font-bold text-white drop-shadow-lg">Habit Tracker Pro</h1>
-                <button onClick={requestNotificationPermission} className={`p-3 rounded-xl transition-all ${notificationsEnabled ? 'bg-green-500/20 text-green-300' : 'bg-white/10 text-white hover:bg-white/20'}`} title={notificationsEnabled ? 'Notificaciones activadas' : 'Activar notificaciones'}>
-                  {notificationsEnabled ? '🔔' : '🔕'}
-                </button>
-              </div>
-              <p className="text-purple-200 text-lg">👤 {username}</p>
-            </div>
+        function loadData() {
+            const storedHabits = localStorage.getItem('habits');
+            const storedUser = localStorage.getItem('username');
+            
+            if (storedHabits) state.habits = JSON.parse(storedHabits);
+            if (storedUser) {
+                state.username = storedUser;
+            } else {
+                state.showUserModal = true;
+            }
 
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 shadow-xl">
-              <div className="mb-4">
-                <label className="text-white text-sm mb-2 block">Elige un emoji:</label>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {EMOJIS.map(emoji => (
-                    <button key={emoji} onClick={() => setSelectedEmoji(emoji)} className={`text-3xl p-2 rounded-lg transition-all ${selectedEmoji === emoji ? 'bg-white/30 scale-125' : 'bg-white/10 hover:bg-white/20'}`}>{emoji}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <input type="text" value={newHabit} onChange={(e) => setNewHabit(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addHabit()} placeholder="Nuevo hábito..." className="flex-1 px-6 py-4 rounded-xl bg-white/20 backdrop-blur-sm text-white placeholder-purple-200 border-2 border-white/30 focus:border-white/60 focus:outline-none text-lg" />
-                <button onClick={addHabit} className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-purple-600 transition-all transform hover:scale-105 shadow-lg">➕ Agregar</button>
-              </div>
-            </div>
+            checkMissedDays();
+            checkWeeklyReport();
 
-            <div className="space-y-4">
-              {habits.length === 0 ? (
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-12 text-center shadow-xl">
-                  <p className="text-purple-200 text-xl">No hay hábitos aún. ¡Agrega tu primer hábito! 🚀</p>
-                </div>
-              ) : habits.map((habit) => {
-                const completed = isCompletedToday(habit);
-                return (
-                  <div key={habit.id} className={`bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-xl transition-all transform hover:scale-[1.02] ${completed ? 'bg-green-500/20 border-2 border-green-400/50' : ''}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 flex items-center gap-4">
-                        <span className="text-5xl">{habit.emoji}</span>
+            state.loading = false;
+            render();
+        }
+
+        async function sendTelegram(message) {
+            try {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: TELEGRAM_CHAT_ID,
+                        text: message,
+                        parse_mode: 'HTML'
+                    })
+                });
+            } catch (e) { console.error("Error Telegram:", e); }
+        }
+
+        async function sendPush(title, body, iconChar) {
+            if (!('Notification' in window)) return;
+            
+            if (Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+
+            if (Notification.permission === 'granted') {
+                const icon = `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>${iconChar}</text></svg>`;
+                
+                new Notification(title, {
+                    body: body,
+                    icon: icon,
+                    vibrate: [200, 100, 200],
+                    requireInteraction: false
+                });
+            }
+        }
+
+        function triggerCelebration(streak) {
+            let gif = DEFAULT_GIF;
+            let soundSrc = BASE64_SOUND;
+
+            if (streak === 3) { gif = 'Day3.gif'; soundSrc = 'Day3.mp3'; }
+            else if (streak === 7) { gif = 'Day7.gif'; soundSrc = 'Day7.mp3'; }
+            else if (streak === 15) { gif = 'Day15.gif'; soundSrc = 'Day15.mp3'; }
+            else if (streak >= 30) { gif = 'Day30.gif'; soundSrc = 'Day30.mp3'; }
+
+            state.celebrationGif = gif;
+            state.showCelebration = true;
+            render();
+
+            try {
+                const audio = new Audio(soundSrc);
+                audio.play().catch(e => console.log("Audio blocked", e));
+            } catch(e) {}
+
+            setTimeout(() => {
+                state.showCelebration = false;
+                render();
+            }, 3500);
+        }
+
+        function checkMissedDays() {
+            const lastCheck = localStorage.getItem('lastCheck');
+            const today = new Date().toDateString();
+
+            if (lastCheck && lastCheck !== today) {
+                const stored = JSON.parse(localStorage.getItem('habits') || '[]');
+                
+                const missed = stored.filter(h => {
+                    if (h.frequency !== 'daily' || !h.lastCompleted) return false;
+                    
+                    const lastCompletedDate = new Date(h.lastCompleted);
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    
+                    return lastCompletedDate < yesterday.setHours(0,0,0,0);
+                });
+
+                if (missed.length > 0) {
+                    const num = Math.floor(Math.random() * 8) + 1;
+                    const gifName = `Failure${num}.gif`;
+                    const soundName = `Failure${num}.mp3`;
+                    
+                    state.shameGif = gifName;
+                    state.showShame = true;
+                    render();
+                    
+                    try {
+                        const audio = new Audio(soundName);
+                        audio.play().catch(e => {});
+                    } catch(e) {}
+
+                    sendPush('😢 ¡Te saltaste días!', `Tienes ${missed.length} hábitos que se han roto. ¡A recuperarse!`, '😢');
+                    setTimeout(() => {
+                        state.showShame = false;
+                        render();
+                    }, 4000);
+                }
+            }
+            localStorage.setItem('lastCheck', today);
+        }
+
+        function checkWeeklyReport() {
+            const lastReport = localStorage.getItem('lastWeeklyReport');
+            const today = new Date();
+            const todayStr = today.toDateString();
+            
+            if (today.getDay() === 0 && lastReport !== todayStr) { // Domingo
+                const stored = JSON.parse(localStorage.getItem('habits') || '[]');
+                if (stored.length === 0) return;
+
+                const total = stored.reduce((sum, h) => sum + h.completedCount, 0);
+                const maxStreak = Math.max(...stored.map(h => h.streak), 0);
+
+                let msg = `📊 <b>REPORTE SEMANAL</b> 📊\n\n`;
+                msg += `👤 Usuario: ${state.username}\n`;
+                msg += `✅ Total completados: ${total}\n`;
+                msg += `🔥 Racha máxima: ${maxStreak}\n\n`;
+                stored.forEach(h => {
+                    msg += `${h.emoji} ${h.name} (${h.frequency}): ${h.streak} streak\n`;
+                });
+
+                sendTelegram(msg);
+                sendPush('📊 Reporte Semanal Disponible', `Total completados: ${total}`, '📊');
+                
+                localStorage.setItem('lastWeeklyReport', todayStr);
+            }
+        }
+
+        // --- MANEJO DE EVENTOS ---
+
+        window.saveUser = function() {
+            const input = document.getElementById('usernameInput');
+            if(input && input.value.trim()){
+                state.username = input.value.trim();
+                localStorage.setItem('username', state.username);
+                state.showUserModal = false;
+                sendTelegram(`👋 <b>${state.username}</b> se ha unido al Habit Tracker!`);
+                render();
+            }
+        };
+
+        window.openAddModal = function() {
+            state.showAddModal = true;
+            render();
+        }
+
+        window.closeAddModal = function() {
+            state.showAddModal = false;
+            render();
+        }
+
+        window.handleNewHabitInput = function(name) {
+            state.newHabit.name = name;
+            renderModal();
+        }
+        
+        window.selectEmoji = function(emoji) {
+            state.newHabit.emoji = emoji;
+            renderModal();
+        }
+
+        window.selectFrequency = function(f) {
+            state.newHabit.frequency = f;
+            renderModal();
+        }
+        
+        window.handleFactorChange = function(factor, value) {
+            state.newHabit.factors[factor] = parseInt(value);
+            renderModal();
+        }
+
+        window.saveHabit = function() {
+            const habitData = state.newHabit;
+            if (!habitData.name.trim()) return;
+
+            const fv = calculateFV(habitData.factors);
+            const rankInfo = getRankInfo(fv);
+
+            const habit = {
+                id: Date.now(),
+                name: habitData.name,
+                emoji: habitData.emoji,
+                completedCount: 0,
+                lastCompleted: null,
+                streak: 0,
+                frequency: habitData.frequency,
+                evaluation: { ...habitData.factors, fv, rank: rankInfo.label }
+            };
+
+            state.habits.push(habit);
+            saveData();
+            
+            sendTelegram(`✨ <b>${state.username}</b> agregó: ${habit.emoji} ${habit.name} [Rank: ${rankInfo.label}]`);
+            state.showAddModal = false;
+            
+            // Resetear formulario
+            state.newHabit = { name: '', emoji: '🎯', frequency: 'daily', factors: { motivation: 5, focus: 5, effort: 5, importance: 5, difficulty: 5 } };
+            
+            render();
+        };
+
+        window.deleteHabit = function(id) {
+            const habit = state.habits.find(h => h.id === id);
+            state.habits = state.habits.filter(h => h.id !== id);
+            saveData();
+            
+            if (habit) sendTelegram(`🗑️ <b>${state.username}</b> eliminó: ${habit.emoji} ${habit.name}`);
+            render();
+        };
+
+        window.completeHabit = function(id) {
+            const habitIndex = state.habits.findIndex(h => h.id === id);
+            if (habitIndex === -1 || !canComplete(state.habits[habitIndex])) return;
+
+            const habit = state.habits[habitIndex];
+            const now = Date.now();
+            const newStreak = calculateNewStreak(habit);
+
+            habit.completedCount += 1;
+            habit.lastCompleted = now;
+            habit.streak = newStreak;
+            
+            saveData();
+
+            triggerCelebration(newStreak);
+            
+            let msg = `🎉 <b>${state.username}</b> completó: ${habit.emoji} ${habit.name}\n🔥 Racha: ${newStreak} días`;
+            if (newStreak === 3) msg += `\n🥉 ¡TRES DÍAS SEGUIDOS!`;
+            if (newStreak === 7) msg += `\n🏆 ¡UNA SEMANA!`;
+            if (newStreak === 15) msg += `\n💎 ¡DOS SEMANAS!`;
+            if (newStreak === 30) msg += `\n🌟 ¡UN MES!`;
+
+            sendTelegram(msg);
+            sendPush(`¡Hábito Completado!`, `${habit.name}: Racha de ${newStreak}`, habit.emoji);
+            render();
+        };
+        
+        // --- FUNCIONES DE TEST ---
+        window.testDay3 = () => triggerCelebration(3);
+        window.testDay7 = () => triggerCelebration(7);
+        window.testDay15 = () => triggerCelebration(15);
+        window.testDay30 = () => triggerCelebration(30);
+        window.testFailure = () => {
+            const num = Math.floor(Math.random() * 8) + 1;
+            const gifName = `Failure${num}.gif`;
+            const soundName = `Failure${num}.mp3`;
+            state.shameGif = gifName;
+            state.showShame = true;
+            render();
+            try {
+                const audio = new Audio(soundName);
+                audio.play().catch(e => {});
+            } catch(e) {}
+            setTimeout(() => { state.showShame = false; render(); }, 3000);
+        };
+        window.testWeeklyReport = checkWeeklyReport;
+        
+        // --- RENDERIZADO UI ---
+
+        function getIcon(name, size = 24, className = '') {
+            const iconData = {
+                'Trophy': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2.34c-1.35-.94-2-2.73-2-4.66 0-3.32 2.69-6 6-6s6 2.68 6 6c0 1.93-.65 3.72-2 4.66"/><path d="M10 18c0 1.66-1.34 3-3 3s-3-1.34-3-3"/><path d="M14 18c0 1.66 1.34 3 3 3s3-1.34 3-3"/></svg>`,
+                'Plus': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
+                'Check': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M20 6 9 17l-5-5"/></svg>`,
+                'Flame': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.85-2-1.5-2.5 1-.6 1.5-1 1.5-2.5 0-.55-.45-1-1-1 0-.55-.45-1-1-1V5c0-1.1-.9-2-2-2S5 3.9 5 5v1c-.55 0-1 .45-1 1 0 1.5.5 1.9 1.5 2.5-.65.5-1.5 1.12-1.5 2.5 0 1.38.85 2 1.5 2.5 1 .6 1.5 1 1.5 2.5 0 .55.45 1 1 1h2.5"/><path d="M12 21.5V20c0-1.1.9-2 2-2s2 .9 2 2v1.5c0 1.1-.9 2-2 2s-2-.9-2-2z"/><path d="M18 10V8c0-1.1-.9-2-2-2s-2 .9-2 2v2c0 1.1.9 2 2 2s2-.9 2-2z"/></svg>`,
+                'User': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+                'Calendar': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`,
+                'Zap': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+                'Star': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+                'TrendingUp': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
+                'Trash2': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`,
+                'X': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
+                'AlertTriangle': `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="m21.73 18-9-15a.49.49 0 0 0-.01-.01c-.13-.12-.28-.18-.44-.18H3.73a.49.49 0 0 0-.44.18l-9 15c-.13.2-.09.46.09.64.09.09.21.14.34.14h18c.13 0 .25-.05.34-.14.18-.18.22-.44.09-.64Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`
+            };
+            return iconData[name] || '';
+        }
+        
+        function renderMainContent() {
+            const isCompletedToday = (habit) => {
+                if (!habit.lastCompleted) return false;
+                return new Date(habit.lastCompleted).toDateString() === new Date().toDateString();
+            };
+
+            let html = '';
+            
+            // Header
+            html += `<header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                         <div>
-                          <h3 className={`text-2xl font-semibold mb-2 ${completed ? 'text-green-300 line-through' : 'text-white'}`}>{habit.name}</h3>
-                          <div className="flex gap-6 text-purple-200">
-                            <span>✓ {habit.completedCount} veces</span>
-                            <span>🔥 {habit.streak} días seguidos</span>
-                          </div>
+                            <h1 class="text-4xl font-bold drop-shadow-lg flex items-center gap-2">
+                                ${getIcon('Trophy', 32, 'text-yellow-400')} Habit Tracker Pro
+                            </h1>
+                            <p class="text-purple-200 mt-1 flex items-center gap-2">
+                                ${getIcon('User', 18)} ${state.username}
+                            </p>
                         </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <button onClick={() => completeHabit(habit.id)} disabled={completed} className={`p-4 rounded-xl font-semibold transition-all transform hover:scale-110 shadow-lg ${completed ? 'bg-green-500/50 text-green-200 cursor-not-allowed' : 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600'}`}>✓</button>
-                        <button onClick={() => deleteHabit(habit.id)} className="p-4 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-xl transition-all transform hover:scale-110">🗑️</button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        <button onclick="openAddModal()"
+                            class="bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-105 transition-transform px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg">
+                            ${getIcon('Plus', 24)} Nuevo Hábito
+                        </button>
+                    </header>`;
 
-            {habits.length > 0 && (
-              <div className="mt-8 bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-xl">
-                <h2 className="text-2xl font-bold text-white mb-4">📊 Estadísticas</h2>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center"><div className="text-4xl font-bold text-white">{habits.length}</div><div className="text-purple-200">Hábitos</div></div>
-                  <div className="text-center"><div className="text-4xl font-bold text-white">{habits.reduce((s, h) => s + h.completedCount, 0)}</div><div className="text-purple-200">Total</div></div>
-                  <div className="text-center"><div className="text-4xl font-bold text-white">{habits.filter(isCompletedToday).length}</div><div className="text-purple-200">Hoy</div></div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
-    
-    ReactDOM.render(<HabitTracker />, document.getElementById('root'));
-  </script>
+            // Stats Dashboard
+            const totalCompleted = state.habits.reduce((acc,h) => acc + h.completedCount, 0);
+            const completedToday = state.habits.filter(isCompletedToday).length;
+            
+            html += `<div class="grid grid-cols-3 gap-4 mb-8">
+                        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 text-center">
+                            <div class="text-3xl font-bold">${state.habits.length}</div>
+                            <div class="text-xs md:text-sm text-purple-200 uppercase tracking-wide">Hábitos</div>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 text-center">
+                            <div class="text-3xl font-bold">${totalCompleted}</div>
+                            <div class="text-xs md:text-sm text-purple-200 uppercase tracking-wide">Completados</div>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 text-center">
+                            <div class="text-3xl font-bold">${completedToday}</div>
+                            <div class="text-xs md:text-sm text-purple-200 uppercase tracking-wide">Hoy</div>
+                        </div>
+                    </div>`;
+
+            // Habits Grid
+            html += `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-24">`;
+            
+            if (state.habits.length === 0) {
+                html += `<div class="md:col-span-2 text-center py-12 text-purple-200 bg-white/5 rounded-2xl">
+                            ${getIcon('AlertTriangle', 32, 'mx-auto mb-3')}
+                            <p>No tienes hábitos aún. ¡Crea el primero!</p>
+                        </div>`;
+            } else {
+                state.habits.forEach(habit => {
+                    const available = canComplete(habit);
+                    const rankInfo = getRankInfo(habit.evaluation.fv);
+                    const completed = isCompletedToday(habit);
+
+                    html += `<div class="bg-white/10 backdrop-blur-md rounded-2xl p-5 relative transition-all hover:scale-[1.02] border-l-4 ${completed ? 'border-green-400 bg-green-500/10' : 'border-purple-400'}">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-4xl bg-white/5 p-2 rounded-xl">${habit.emoji}</span>
+                                        <div>
+                                            <h3 class="text-xl font-bold ${completed ? 'line-through text-green-300' : ''}">${habit.name}</h3>
+                                            <div class="flex items-center gap-2 text-xs text-purple-200 mt-1">
+                                                <span class="font-bold ${rankInfo.color}">${rankInfo.label}</span>
+                                                <span>•</span>
+                                                <span class="flex text-yellow-400">
+                                                    ${Array(rankInfo.stars).fill(0).map(() => getIcon('Star', 10, 'fill-current')).join('')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button onclick="deleteHabit(${habit.id})" class="text-white/30 hover:text-red-400 p-1">
+                                        ${getIcon('Trash2', 18)}
+                                    </button>
+                                </div>
+
+                                <div class="mt-4 flex justify-between items-end">
+                                    <div class="text-sm space-y-1 text-purple-100">
+                                        <div class="flex items-center gap-2">${getIcon('Flame', 14, 'text-orange-400')} Racha: ${habit.streak}</div>
+                                        <div class="flex items-center gap-2">${getIcon('Check', 14)} Total: ${habit.completedCount}</div>
+                                        <div class="flex items-center gap-2">${getIcon('Calendar', 14)} ${habit.frequency.charAt(0).toUpperCase() + habit.frequency.slice(1)}</div>
+                                    </div>
+
+                                    <button onclick="completeHabit(${habit.id})" ${!available ? 'disabled' : ''}
+                                        class="p-3 rounded-xl transition-all shadow-lg ${available ? 'bg-gradient-to-r from-green-400 to-emerald-600 hover:scale-110 cursor-pointer' : 'bg-white/5 cursor-not-allowed opacity-50'}">
+                                        ${getIcon('Check', 24)}
+                                    </button>
+                                </div>
+                                
+                                <div class="absolute top-2 right-10 text-[10px] bg-black/40 px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity">
+                                    FV: ${habit.evaluation.fv.toLocaleString()}
+                                </div>
+                            </div>`;
+                });
+            }
+            html += `</div>`;
+            
+            // Debug Panel
+            html += `<div class="fixed bottom-4 left-4 flex flex-col gap-2 opacity-30 hover:opacity-100 transition-opacity z-40">
+                        <div class="bg-black/80 p-2 rounded text-[10px] text-white">TEST PANEL</div>
+                        <button onclick="testDay3()" class="bg-blue-500/50 text-xs px-2 py-1 rounded">Day 3</button>
+                        <button onclick="testDay7()" class="bg-blue-500/50 text-xs px-2 py-1 rounded">Day 7</button>
+                        <button onclick="testDay15()" class="bg-blue-500/50 text-xs px-2 py-1 rounded">Day 15</button>
+                        <button onclick="testDay30()" class="bg-blue-500/50 text-xs px-2 py-1 rounded">Day 30</button>
+                        <button onclick="testFailure()" class="bg-red-500/50 text-xs px-2 py-1 rounded">Failure</button>
+                        <button onclick="testWeeklyReport()" class="bg-green-500/50 text-xs px-2 py-1 rounded">Reporte</button>
+                    </div>`;
+
+            document.getElementById('main-content').innerHTML = html;
+        }
+        
+        function renderModal() {
+            let html = '';
+            
+            // Modal: Username
+            if (state.showUserModal) {
+                html += `<div class="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+                            <div class="bg-white text-gray-900 rounded-3xl p-8 max-w-sm w-full text-center">
+                                <h2 class="text-2xl font-bold mb-4">¡Bienvenido!</h2>
+                                <p class="mb-4 text-gray-600">¿Cómo te llamas, guerrero?</p>
+                                <input id="usernameInput" type="text" 
+                                    class="w-full border-2 border-purple-200 rounded-xl p-3 mb-4 text-center text-lg focus:border-purple-600 outline-none"
+                                    value="${state.username}"
+                                    oninput="state.username = this.value"
+                                    onkeypress="if(event.key === 'Enter') saveUser()"
+                                    placeholder="Tu Nombre"
+                                />
+                                <button onclick="saveUser()" class="w-full bg-purple-600 text-white py-3 rounded-xl font-bold">Comenzar</button>
+                            </div>
+                        </div>`;
+            }
+
+            // Modal: Add Habit
+            if (state.showAddModal) {
+                const habitData = state.newHabit;
+                const fv = calculateFV(habitData.factors);
+                const rankInfo = getRankInfo(fv);
+                
+                const factorLabels = {
+                    motivation: 'Motivación (Qué tanto lo quieres)',
+                    focus: 'Concentración (Nivel de distracción)',
+                    effort: 'Esfuerzo (Energía requerida)',
+                    importance: 'Importancia (Impacto a largo plazo)',
+                    difficulty: 'Dificultad (Qué tan complejo es)'
+                };
+
+                html += `<div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm overflow-y-auto">
+                            <div class="bg-gray-900 border border-purple-500 rounded-3xl p-6 w-full max-w-lg shadow-2xl my-auto">
+                                <div class="flex justify-between items-center mb-6">
+                                    <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Diseñar Hábito</h2>
+                                    <button onclick="closeAddModal()">${getIcon('X', 24)}</button>
+                                </div>
+
+                                <div class="space-y-6">
+                                    <!-- Nombre y Emoji -->
+                                    <div class="flex gap-4">
+                                        <div class="flex-1">
+                                            <label class="block text-sm text-purple-300 mb-1">Nombre</label>
+                                            <input type="text" 
+                                                class="w-full bg-white/10 rounded-xl p-3 focus:outline-none focus:ring-2 ring-purple-500"
+                                                placeholder="Ej: Leer 30 min"
+                                                value="${habitData.name}"
+                                                oninput="handleNewHabitInput(this.value)"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm text-purple-300 mb-1">Emoji</label>
+                                            <select 
+                                                class="bg-white/10 rounded-xl p-3 appearance-none text-center min-w-[60px] text-xl"
+                                                onchange="selectEmoji(this.value)"
+                                            >
+                                                ${EMOJIS.map(e => `<option value="${e}" ${habitData.emoji === e ? 'selected' : ''}>${e}</option>`).join('')}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Frecuencia -->
+                                    <div>
+                                        <label class="block text-sm text-purple-300 mb-2">Frecuencia</label>
+                                        <div class="flex bg-white/5 rounded-xl p-1">
+                                            ${['daily', 'weekly', 'monthly'].map(f => (
+                                                `<button onclick="selectFrequency('${f}')"
+                                                    class="flex-1 py-2 rounded-lg capitalize text-sm transition-all ${habitData.frequency === f ? 'bg-purple-600 shadow' : 'hover:bg-white/5'}"
+                                                >
+                                                    ${f}
+                                                </button>`
+                                            )).join('')}
+                                        </div>
+                                    </div>
+
+                                    <!-- Evaluación FV -->
+                                    <div class="bg-white/5 p-4 rounded-xl space-y-4">
+                                        <h3 class="text-sm font-bold text-yellow-300 flex items-center gap-2">
+                                            ${getIcon('Zap', 16)} Evaluación de Valor (FV)
+                                        </h3>
+                                        ${Object.keys(habitData.factors).map(factor => (
+                                            `<div key="${factor}">
+                                                <div class="flex justify-between text-xs text-gray-400 mb-1 capitalize">
+                                                    <span>${factorLabels[factor]}</span>
+                                                    <span>${habitData.factors[factor]}</span>
+                                                </div>
+                                                <input type="range" min="1" max="10" step="1"
+                                                    value="${habitData.factors[factor]}"
+                                                    oninput="handleFactorChange('${factor}', this.value)"
+                                                    class="w-full"
+                                                />
+                                            </div>`
+                                        )).join('')}
+                                        
+                                        <!-- FV Preview -->
+                                        <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                                            <div class="text-xs text-gray-400">
+                                                FV Total: <span class="text-white font-mono text-lg">${fv.toLocaleString()}</span>
+                                            </div>
+                                            <div class="text-sm font-bold px-3 py-1 rounded-full bg-white/10 ${rankInfo.color} flex items-center gap-1">
+                                                ${rankInfo.icon} ${rankInfo.label}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button onclick="saveHabit()"
+                                        class="w-full bg-gradient-to-r from-green-500 to-teal-500 py-4 rounded-xl font-bold hover:scale-[1.02] transition-transform"
+                                    >
+                                        Crear Hábito
+                                    </button>
+                                </div>
+                            </div>
+                        </div>`;
+            }
+
+            // Overlay: Celebration
+            if (state.showCelebration) {
+                html += `<div class="fixed inset-0 flex items-center justify-center z-50 pointer-events-none bg-black/40 backdrop-blur-sm">
+                            <div class="text-center animate-bounce-custom">
+                                <img src="${state.celebrationGif}" 
+                                     onerror="this.src='${DEFAULT_GIF}'" 
+                                     class="w-64 h-64 object-cover rounded-3xl border-4 border-white shadow-2xl mx-auto" 
+                                />
+                                <h2 class="text-4xl font-bold mt-4 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-pink-500 drop-shadow-sm">
+                                    ¡EXCELENTE!
+                                </h2>
+                            </div>
+                        </div>`;
+            }
+
+            // Overlay: Shame
+            if (state.showShame) {
+                html += `<div class="fixed inset-0 flex items-center justify-center z-50 pointer-events-none bg-black/60 backdrop-blur-sm">
+                            <div class="text-center animate-pulse">
+                                <img src="${state.shameGif}" 
+                                     onerror="this.src='https://media.giphy.com/media/ISOckXUybVfQ4/giphy.gif'"
+                                     class="w-64 h-64 object-cover rounded-3xl border-4 border-red-500 shadow-2xl mx-auto grayscale" 
+                                />
+                                <h2 class="text-4xl font-bold mt-4 text-red-500 drop-shadow-sm">
+                                    TE SALTASTE DÍAS...
+                                </h2>
+                            </div>
+                        </div>`;
+            }
+            
+            document.getElementById('modals').innerHTML = html;
+        }
+
+        // Función de renderizado principal que llama a ambas partes
+        function render() {
+            renderMainContent();
+            renderModal();
+        }
+
+        // --- INICIALIZACIÓN ---
+        window.onload = loadData;
+    </script>
 </body>
 </html>
